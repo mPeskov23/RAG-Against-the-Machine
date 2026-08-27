@@ -1,4 +1,5 @@
 from models import MinimalSource
+import ast
 
 
 def read_file(filename: str) -> str:
@@ -28,3 +29,13 @@ def chunk_md(text: str, file_path: str, max_chunk_size: int = 2000) -> list[Mini
         ret_list.append(source)
         start += max_chunk_size - overlap
     return ret_list
+
+
+def read_py(filename: str) -> ast.Module | None:
+    text = read_file(filename)
+    try:
+        tree = ast.parse(text)
+        return tree
+    except SyntaxError:
+        print(f"Some syntax error in python file {filename}")
+    return None
