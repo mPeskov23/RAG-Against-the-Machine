@@ -39,7 +39,7 @@ def get_line_offsets(text: str) -> list[int]:
         line_offsets.append(acc_len)
     return line_offsets
 
-def read_py(filename: str) -> ast.Module | None:
+def parse_py(filename: str) -> ast.Module | None:
     text = read_file(filename)
     line_offsets = get_line_offsets(text)
     try:
