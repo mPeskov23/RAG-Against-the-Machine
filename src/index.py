@@ -31,8 +31,17 @@ def chunk_md(text: str, file_path: str, max_chunk_size: int = 2000) -> list[Mini
     return ret_list
 
 
+def get_line_offsets(text: str) -> list[int]:
+    line_offsets: list[int] = []
+    acc_len = 0
+    for line in text.split('\n'):
+        acc_len += len(line)
+        line_offsets.append(acc_len)
+    return line_offsets
+
 def read_py(filename: str) -> ast.Module | None:
     text = read_file(filename)
+    line_offsets = get_line_offsets(text)
     try:
         tree = ast.parse(text)
         return tree
