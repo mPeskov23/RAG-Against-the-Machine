@@ -39,6 +39,7 @@ def get_line_offsets(text: str) -> list[int]:
         line_offsets.append(acc_len)
     return line_offsets
 
+
 def parse_py(filename: str) -> ast.Module | None:
     text = read_file(filename)
     line_offsets = get_line_offsets(text)
@@ -48,3 +49,11 @@ def parse_py(filename: str) -> ast.Module | None:
     except SyntaxError:
         print(f"Some syntax error in python file {filename}")
     return None
+
+
+def chunk_py(filename: str) -> list[MinimalSource]:
+    retlist: list[MinimalSource] = []
+    tree: ast.Module | None = parse_py(filename)
+    if tree is None:
+        return retlist
+    line_offsets: list[int] = get_line_offsets(filname)
