@@ -92,12 +92,12 @@ def chunk_py(filename: str, max_chunk_size: int = 2000) -> list[MinimalSource]:
         tree = ast.parse(text)
     except SyntaxError:
         print(f"Syntax error in {filename}, falling back to text chunking")
-        return chunk_md(text, filename, max_chunk_size)
+        return chunk_md(filename, max_chunk_size)
     line_offsets = get_line_offsets(text)
     chunker = CodeChunker(file_path=filename, line_offsets=line_offsets, max_chunk_size=max_chunk_size)
     chunker.visit(tree)
     if not chunker.chunks:
-        return chunk_md(text, filename, max_chunk_size)
+        return chunk_md(filename, max_chunk_size)
     return chunker.chunks
 
 
