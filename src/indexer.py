@@ -1,9 +1,10 @@
 from .models import MinimalSource
-from .chunking import chunk
+from .chunking import chunk, read_file
 from collections import Counter
 from tqdm import tqdm
 from pathlib import Path
 import re
+import math
 
 
 def tokenize(text: str) -> list[str]:
@@ -42,5 +43,34 @@ class BM25Indexer:
         self.inverted_index: dict[str, dict[int, int]] = {}
         self.idf: dict[str, float] = {}
 
+    def create_inverted_index(self) -> None:
+        file_cache: dict[str, str] = {}
+        for doc_id, entry in enumerate(tqdm(self.corpus, desc="Creating Index")):
+            name = entry.file_path
+            start = entry.first_character_index
+            end = entry.last_character_index
+            if name not in file_cache:
+                file_cache[name] = read_file(name)
+            file_text = file_cache[name]
+            chunk = file_text[start:end]
+            tokens = tokenize(chunk)
+            self.doc_lengths.append(len(tokens))
+            for token in tokens:
+                if token not in self.inverted_index:
+                    self.inverted_index[token] = {doc_id: 1}
+                else:
+                    self.inverted_index[token][doc_id] += self.inverted_index[token].get(doc_id, 0) + 1
+
+    def calculate_inv_doc_fr(self) -> None:
+        for key in tqdm(self.inverted_index.keys(), dec="Calculating idf"):
+            if key not in self.idf:
+                self.idf[key] = 0.0
+            q = len(self.inverted_index[key])
+            n = self.doc_count
+            self.idf[key] = math.log(1 + (n - q + 0.5) / (q + 0.5))
+
     def fit(self) -> None:
-        pass
+        self.create_inverted_index()
+        if self.doc_count > 0:
+            self.avg_doc_len = sum(self.doc_lengths) / self.doc_count
+        self.calculate_inv_doc_fr()
