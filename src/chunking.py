@@ -83,17 +83,6 @@ def get_char_indices(node: ast.AST, line_offsets: list[int]) -> tuple[int, int]:
     return first_idx, last_idx
 
 
-def parse_py(filename: str) -> ast.Module | None:
-    text = read_file(filename)
-    line_offsets = get_line_offsets(text)
-    try:
-        tree = ast.parse(text)
-        return tree
-    except SyntaxError:
-        print(f"Some syntax error in python file {filename}")
-    return None
-
-
 def chunk_py(filename: str, max_chunk_size: int = 2000) -> list[MinimalSource]:
     text = read_file(filename)
     if not text:
