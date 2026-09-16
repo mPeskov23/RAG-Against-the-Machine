@@ -1,10 +1,11 @@
-from .models import MinimalSource
-from .chunking import chunk, read_file
-from collections import Counter
-from tqdm import tqdm
-from pathlib import Path
-import re
 import math
+import pickle
+import re
+from collections import Counter
+from pathlib import Path
+from tqdm import tqdm
+from .chunking import chunk, read_file
+from .models import MinimalSource
 
 
 def tokenize(text: str) -> list[str]:
@@ -77,6 +78,28 @@ class BM25Indexer:
             self.avg_doc_len = sum(self.doc_lengths) / self.doc_count
         self.calculate_inv_doc_fr()
 
+    def save(
+        self, file_path: str | Path = "data/processed/bm25_indexer.pkl"
+    ) -> Path:
+        path = Path(file_path)
+        if path.is_dir() or not path.suffix:
+            path = path / "bm25_indexer.pkl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+        return path
+
+    @classmethod
+    def load(
+        cls, file_path: str | Path = "data/processed/bm25_indexer.pkl"
+    ) -> "BM25Indexer":
+        path = Path(file_path)
+        if path.is_dir() or not path.suffix:
+            path = path / "bm25_indexer.pkl"
+        with open(path, "rb") as f:
+            indexer: BM25Indexer = pickle.load(f)
+        return indexer
+
     def score_query(self,
                     query: str,
                     k: float = 1.5,
@@ -98,7 +121,9 @@ class BM25Indexer:
                 denominator = freq * (k + length_norm)
                 term_score = idf * numerator / denominator
                 scores[doc_id] = scores.get(doc_id, 0.0) + term_score
-        results = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+        results = sorted(
+            scores.items(), key=lambda item: item[1], reverse=True
+        )
         if top_k is not None:
             results = results[:top_k]
         return results
