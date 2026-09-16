@@ -1,5 +1,5 @@
 from models import *
-from index import read_file, chunk_md, parse_py
+from chunking import read_file, chunk_md, parse_py
 import ast
 
 
