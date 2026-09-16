@@ -109,3 +109,10 @@ def chunk_py(filename: str, max_chunk_size: int = 2000) -> list[MinimalSource]:
     if not chunker.chunks:
         return chunk_md(text, filename, max_chunk_size)
     return chunker.chunks
+
+
+def chunk(filename: str, max_chunk_size: int = 2000) -> list[MinimalSource]:
+    if filename.endswith('.py'):
+        return chunk_py(filename, max_chunk_size)
+    else:
+        return chunk_md(filename, max_chunk_size)
