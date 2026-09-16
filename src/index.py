@@ -32,12 +32,21 @@ def chunk_md(text: str, file_path: str, max_chunk_size: int = 2000) -> list[Mini
 
 
 def get_line_offsets(text: str) -> list[int]:
-    line_offsets: list[int] = []
-    acc_len = 0
-    for line in text.split('\n'):
-        acc_len += len(line)
-        line_offsets.append(acc_len)
-    return line_offsets
+    offsets: list[int] = [0]
+    for line in text.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    return offsets
+
+
+def get_char_indices(node: ast.AST, line_offsets: list[int]) -> tuple[int, int]:
+    start_line = getattr(node, "lineno", 1) - 1
+    start_col = getattr(node, "col_offset", 0)
+    first_idx = line_offsets[start_line] + start_col
+    end_line = getattr(node, "end_lineno", getattr(node, "lineno", 1)) - 1
+    end_col = getattr(node, "end_col_offset", 0)
+    last_idx = line_offsets[end_line] + end_col
+
+    return first_idx, last_idx
 
 
 def parse_py(filename: str) -> ast.Module | None:
