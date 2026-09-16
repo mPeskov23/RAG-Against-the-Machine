@@ -1,4 +1,4 @@
-from models import MinimalSource
+from .models import MinimalSource
 import ast
 
 
