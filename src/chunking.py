@@ -46,7 +46,8 @@ def read_file(filename: str) -> str:
     return ret_str
 
 
-def chunk_md(text: str, file_path: str, max_chunk_size: int = 2000) -> list[MinimalSource]:
+def chunk_md(file_path: str, max_chunk_size: int = 2000) -> list[MinimalSource]:
+    text = read_file(file_path)
     ret_list: list[MinimalSource] = []
     overlap = int(max_chunk_size / 10)
     start = 0

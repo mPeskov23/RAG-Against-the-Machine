@@ -10,7 +10,7 @@ def tokenize(text: str) -> list[str]:
     text_lower = text.lower()
     retlist = []
     raw_list = re.findall(r"[a-zA-Z0-9_]+", text_lower)
-    for item in tqdm(raw_list, desc="Tokenization"):
+    for item in raw_list:
         if len(item) > 1:
             if '_' in item:
                 for lower_item in item.split('_'):
