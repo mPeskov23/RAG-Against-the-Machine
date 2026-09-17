@@ -5,9 +5,26 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi>=0.141.1",
     "fire>=0.7.1",
     "flake8>=7.3.0",
     "mypy>=2.3.1",
     "pydantic>=2.13.4",
+    "requests>=2.34.2",
+    "sentence-transformers>=6.0.1",
+    "torch>=2.14.0",
     "tqdm>=4.70.0",
+    "transformers>=5.17.0",
+    "uvicorn>=0.53.0",
 ]
+
+[tool.mypy]
+python_version = "3.10"
+exclude = [
+    '^data/',
+    '^datasets_public/',
+    '^moulinette/',
+    '^\.venv/',
+    '^venv/',
+]
+ignore_missing_imports = true

@@ -216,8 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-uv.lock
 data/processed
+data/output/
+data/datasets/
 MOULINETTE.md
 en.subject.pdf
 moulinette/*
