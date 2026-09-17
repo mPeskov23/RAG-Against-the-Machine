@@ -13,7 +13,7 @@ clean:
 	rm -rf `find . -type d -name __pycache__`
 	rm -rf `find . -type d -name .mypy_cache`
 	rm -rf `find . -type d -name .pytest_cache`
-	rm -rf data/output
+	rm -rf data/output data/processed
 
 lint:
 	flake8 src && mypy src --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs

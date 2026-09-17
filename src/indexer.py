@@ -1,7 +1,8 @@
 """Lexical BM25 indexer module.
 
-Implements inverted index, code-aware tokenization (CamelCase, snake_case, path tokens),
-and BM25 ranking for sub-second retrieval over code and documentation.
+Implements inverted index, code-aware tokenization
+(CamelCase, snake_case, path tokens), and BM25 ranking for sub-second
+retrieval over code and documentation.
 """
 
 from collections import Counter
@@ -16,24 +17,26 @@ from .models import MinimalSource
 
 
 STOPWORDS: Set[str] = {
-    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
-    "any", "are", "as", "at", "be", "because", "been", "before", "being", "below",
-    "between", "both", "but", "by", "could", "did", "do", "does", "doing", "down",
-    "during", "each", "few", "for", "from", "further", "had", "has", "have",
-    "having", "he", "her", "here", "hers", "herself", "him", "himself", "his",
-    "how", "i", "if", "in", "into", "is", "it", "its", "itself", "just", "me",
-    "more", "most", "my", "myself", "no", "nor", "not", "now", "of", "off", "on",
-    "once", "only", "or", "other", "our", "ours", "ourselves", "out", "over",
-    "own", "same", "should", "so", "some", "such", "than", "that", "the", "their",
-    "theirs", "them", "themselves", "then", "there", "these", "they", "this",
-    "those", "through", "to", "too", "under", "until", "up", "very", "was", "we",
-    "were", "what", "when", "where", "which", "while", "who", "whom", "why", "with",
-    "would", "you", "your", "yours", "yourself", "yourselves",
+    "a", "about", "above", "after", "again", "against", "all", "am", "an",
+    "and", "any", "are", "as", "at", "be", "because", "been", "before",
+    "being", "below", "between", "both", "but", "by", "could", "did", "do",
+    "does", "doing", "down", "during", "each", "few", "for", "from", "further",
+    "had", "has", "have", "having", "he", "her", "here", "hers", "herself",
+    "him", "himself", "his", "how", "i", "if", "in", "into", "is", "it",
+    "its", "itself", "just", "me", "more", "most", "my", "myself", "no", "nor",
+    "not", "now", "of", "off", "on", "once", "only", "or", "other", "our",
+    "ours", "ourselves", "out", "over", "own", "same", "should", "so", "some",
+    "such", "than", "that", "the", "their", "theirs", "them", "themselves",
+    "then", "there", "these", "they", "this", "those", "through", "to", "too",
+    "under", "until", "up", "very", "was", "we", "were", "what", "when",
+    "where", "which", "while", "who", "whom", "why", "with", "would", "you",
+    "your", "yours", "yourself", "yourselves",
 }
 
 
 def split_identifier(identifier: str) -> List[str]:
-    """Split identifier into subwords by underscores and CamelCase boundaries."""
+    """Split identifier into subwords by underscores and CamelCase
+    boundaries."""
     results: List[str] = []
     lowered = identifier.lower()
     results.append(lowered)
@@ -44,7 +47,9 @@ def split_identifier(identifier: str) -> List[str]:
             if len(part_clean) > 1 and part_clean not in STOPWORDS:
                 results.append(part_clean)
 
-    camel_parts = re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\d|\W|$)|[0-9]+", identifier)
+    camel_parts = re.findall(
+        r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\d|\W|$)|[0-9]+", identifier
+    )
     if len(camel_parts) > 1:
         for part in camel_parts:
             part_clean = part.strip().lower()
@@ -55,7 +60,8 @@ def split_identifier(identifier: str) -> List[str]:
 
 
 def tokenize(text: str, file_path: str = "") -> List[str]:
-    """Extract tokens from text and file path with code identifier decomposition."""
+    """Extract tokens from text and file path with code identifier
+    decomposition."""
     tokens: List[str] = []
 
     # File path tokens (boosted for matching module/file names)
@@ -83,11 +89,17 @@ def tokenize(text: str, file_path: str = "") -> List[str]:
     return tokens
 
 
-def get_flat_chunks(dir_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
-    """Recursively collect chunks from all Python and Markdown files under dir_path."""
+def get_flat_chunks(
+    dir_path: str, max_chunk_size: int = 2000
+) -> List[MinimalSource]:
+    """Recursively collect chunks from all Python and Markdown files
+    under dir_path."""
     chunk_list: List[MinimalSource] = []
     base = Path(dir_path)
-    all_files = [p for p in base.rglob("*") if p.is_file() and p.suffix in [".py", ".md"]]
+    all_files = [
+        p for p in base.rglob("*")
+        if p.is_file() and p.suffix in [".py", ".md"]
+    ]
 
     for file_path in tqdm(all_files, desc="Chunking files", unit="file"):
         chunk_list.extend(chunk(str(file_path), max_chunk_size=max_chunk_size))
@@ -110,7 +122,8 @@ class BM25Indexer:
         self.b: float = 0.75
 
     def create_inverted_index(self) -> None:
-        """Build term frequency dictionary and inverted index for all corpus documents."""
+        """Build term frequency dictionary and inverted index
+        for all corpus documents."""
         file_cache: Dict[str, str] = {}
         self.doc_lengths = []
         self.inverted_index = {}
@@ -139,7 +152,8 @@ class BM25Indexer:
                 self.inverted_index[token][doc_id] = freq
 
     def calculate_idf(self) -> None:
-        """Calculate Okapi BM25 Inverse Document Frequency for all indexed terms."""
+        """Calculate Okapi BM25 Inverse Document Frequency
+        for all indexed terms."""
         self.idf = {}
         n = self.doc_count
         for term, postings in self.inverted_index.items():
@@ -185,7 +199,8 @@ class BM25Indexer:
             postings = self.inverted_index[token]
             for doc_id, tf in postings.items():
                 doc_len = self.doc_lengths[doc_id]
-                denom = tf + k1_val * (1.0 - b_val + b_val * (doc_len / self.avg_doc_len))
+                len_norm = 1.0 - b_val + b_val * (doc_len / self.avg_doc_len)
+                denom = tf + k1_val * len_norm
                 term_score = idf * (tf * (k1_val + 1.0)) / denom
                 scores[doc_id] = scores.get(doc_id, 0.0) + term_score
 
@@ -195,7 +210,9 @@ class BM25Indexer:
 
         return ranked
 
-    def save(self, file_path: str | Path = "data/processed/bm25_indexer.pkl") -> Path:
+    def save(
+        self, file_path: str | Path = "data/processed/bm25_indexer.pkl"
+    ) -> Path:
         """Persist indexer instance to disk via pickle."""
         path = Path(file_path)
         if path.is_dir() or not path.suffix:
@@ -206,7 +223,9 @@ class BM25Indexer:
         return path
 
     @classmethod
-    def load(cls, file_path: str | Path = "data/processed/bm25_indexer.pkl") -> "BM25Indexer":
+    def load(
+        cls, file_path: str | Path = "data/processed/bm25_indexer.pkl"
+    ) -> "BM25Indexer":
         """Load pickled BM25Indexer instance from disk."""
         path = Path(file_path)
         if path.is_dir() or not path.suffix:

@@ -19,14 +19,16 @@ DEFAULT_CACHE_FILE = "data/processed/query_cache.json"
 
 
 class QueryCache:
-    """LRU cache with optional JSON disk persistence for search and answer results."""
+    """LRU cache with optional JSON disk persistence
+    for search and answer results."""
 
     def __init__(
         self,
         capacity: int = 500,
         cache_file: str | Path = DEFAULT_CACHE_FILE,
     ) -> None:
-        """Initialize QueryCache with maximum capacity and disk persistence path."""
+        """Initialize QueryCache with maximum capacity
+        and disk persistence path."""
         self.capacity = capacity
         self.cache_file = Path(cache_file)
         self._cache: OrderedDict[str, Any] = OrderedDict()
@@ -50,7 +52,8 @@ class QueryCache:
         return None
 
     def set(self, query: str, k: int, value: Any, **kwargs: Any) -> None:
-        """Store result in cache, evicting oldest item if capacity is exceeded."""
+        """Store result in cache,
+        evicting oldest item if capacity is exceeded."""
         key = self._make_key(query, k, **kwargs)
         if key in self._cache:
             self._cache.move_to_end(key)
@@ -81,7 +84,8 @@ class QueryCache:
 
 
 class IndexCache:
-    """In-memory singleton cache for indexer instances to accelerate cold start."""
+    """In-memory singleton cache for indexer instances
+    to accelerate cold start."""
 
     _bm25_instance: Optional[BM25Indexer] = None
     _vector_instance: Optional[VectorIndexer] = None
@@ -136,8 +140,12 @@ class IndexCache:
                     cached_sources.append(
                         MinimalSource(
                             file_path=str(item.get("file_path", "")),
-                            first_character_index=int(item.get("first_character_index", 0)),
-                            last_character_index=int(item.get("last_character_index", 0)),
+                            first_character_index=int(
+                                item.get("first_character_index", 0)
+                            ),
+                            last_character_index=int(
+                                item.get("last_character_index", 0)
+                            ),
                         )
                     )
             return cached_sources
@@ -148,5 +156,7 @@ class IndexCache:
             scored = indexer.score_query(query, top_k=k)
             results = [indexer.corpus[doc_id] for doc_id, _ in scored]
 
-        cache.set(query, k, [r.model_dump() for r in results], hybrid=use_hybrid)
+        cache.set(
+            query, k, [r.model_dump() for r in results], hybrid=use_hybrid
+        )
         return results

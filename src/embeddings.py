@@ -17,14 +17,16 @@ MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 class VectorIndexer:
-    """Dense vector indexer using SentenceTransformer for semantic retrieval."""
+    """Dense vector indexer using SentenceTransformer
+    for semantic retrieval."""
 
     def __init__(
         self,
         corpus: Optional[List[MinimalSource]] = None,
         model_name: str = MODEL_NAME,
     ) -> None:
-        """Initialize VectorIndexer with optional corpus and CPU sentence transformer."""
+        """Initialize VectorIndexer with optional corpus
+        and CPU sentence transformer."""
         self.corpus: List[MinimalSource] = corpus or []
         self.model_name = model_name
         self._model: Optional[SentenceTransformer] = None
@@ -37,7 +39,9 @@ class VectorIndexer:
             self._model = SentenceTransformer(self.model_name, device="cpu")
         return self._model
 
-    def fit(self, batch_size: int = 128, max_docs: Optional[int] = None) -> None:
+    def fit(
+        self, batch_size: int = 128, max_docs: Optional[int] = None
+    ) -> None:
         """Encode all corpus chunks into normalized dense vectors."""
         if not self.corpus:
             self.embeddings = np.empty((0, 384), dtype=np.float32)
@@ -47,11 +51,15 @@ class VectorIndexer:
         file_cache: dict[str, str] = {}
         texts: List[str] = []
 
-        for item in tqdm(corpus_subset, desc="Preparing semantic chunks", unit="chunk"):
+        for item in tqdm(
+            corpus_subset, desc="Preparing semantic chunks", unit="chunk"
+        ):
             if item.file_path not in file_cache:
                 file_cache[item.file_path] = read_file(item.file_path)
             content = file_cache[item.file_path]
-            snippet = content[item.first_character_index:item.last_character_index].strip()
+            snippet = content[
+                item.first_character_index:item.last_character_index
+            ].strip()
             # Include file path header for semantic context
             texts.append(f"{item.file_path}\n{snippet[:800]}")
 
@@ -67,7 +75,8 @@ class VectorIndexer:
     def score_query(
         self, query: str, top_k: Optional[int] = 10
     ) -> List[Tuple[int, float]]:
-        """Score all documents against query using cosine similarity over normalized vectors."""
+        """Score all documents against query using cosine similarity
+        over normalized vectors."""
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
 

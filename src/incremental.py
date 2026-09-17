@@ -1,7 +1,7 @@
 """Incremental indexing module.
 
-Bonus 3: Detect modified, added, and deleted files and re-index only changed files
-instead of rebuilding the whole index.
+Bonus 3: Detect modified, added, and deleted files and re-index only changed
+files instead of rebuilding the whole index.
 """
 
 import hashlib
@@ -29,12 +29,15 @@ def get_file_hash(file_path: Path) -> str:
 
 
 class IncrementalIndexManager:
-    """Manages file state tracking and partial re-indexing of modified files."""
+    """Manages file state tracking and partial re-indexing of modified
+    files."""
 
     def __init__(self, metadata_path: str | Path = METADATA_FILE) -> None:
         """Initialize incremental index manager with metadata state path."""
         self.metadata_path = Path(metadata_path)
-        self.registry: Dict[str, Dict[str, float | str | int]] = self._load_registry()
+        self.registry: Dict[
+            str, Dict[str, float | str | int]
+        ] = self._load_registry()
 
     def _load_registry(self) -> Dict[str, Dict[str, float | str | int]]:
         """Load file state registry from disk or return empty dict."""
@@ -43,7 +46,9 @@ class IncrementalIndexManager:
                 with open(self.metadata_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, dict):
-                        return cast(Dict[str, Dict[str, float | str | int]], data)
+                        return cast(
+                            Dict[str, Dict[str, float | str | int]], data
+                        )
             except Exception:
                 pass
         return {}
@@ -57,7 +62,8 @@ class IncrementalIndexManager:
     def scan_changes(
         self, corpus_dir: str | Path
     ) -> Tuple[List[Path], List[Path], List[str]]:
-        """Scan corpus directory and detect added, modified, and deleted files."""
+        """Scan corpus directory and detect added, modified, and deleted
+        files."""
         base = Path(corpus_dir)
         current_files: Dict[str, Path] = {
             str(p): p

@@ -3,8 +3,31 @@
 Expose querying index and answering questions over a local HTTP API.
 """
 
-from typing import Optional
-from fastapi import FastAPI, HTTPException
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
+
+if TYPE_CHECKING:
+    _F = TypeVar("_F", bound=Callable[..., Any])
+
+    class FastAPI:
+        """Type checking stub for FastAPI."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            ...
+
+        def get(self, *args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+            ...
+
+        def post(self, *args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+            ...
+
+    class HTTPException(Exception):
+        """Type checking stub for HTTPException."""
+
+        def __init__(self, status_code: int, detail: Any = None) -> None:
+            ...
+else:
+    from fastapi import FastAPI, HTTPException
+
 import uvicorn
 from .caching import IndexCache
 from .generator import AnswerGenerator
@@ -20,7 +43,7 @@ from .models import (
 
 app = FastAPI(
     title="mpeskov Against the Machine API",
-    description="Local HTTP API for codebase retrieval and grounded question answering",
+    description="Local HTTP API for codebase retrieval and question answering",
     version="1.0.0",
 )
 
@@ -37,7 +60,9 @@ def health() -> HealthResponse:
         lexical = False
 
     vec = IndexCache.get_vector()
-    semantic = vec is not None and vec.embeddings is not None and len(vec.embeddings) > 0
+    semantic = (vec is not None
+                and vec.embeddings is not None
+                and len(vec.embeddings) > 0)
 
     return HealthResponse(
         status="ok" if lexical else "no_index",
@@ -53,7 +78,8 @@ def search_endpoint(request: SearchRequest) -> MinimalSearchResults:
     try:
         bm25 = IndexCache.get_bm25()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Index not available: {exc}")
+        raise HTTPException(status_code=500,
+                            detail=f"Index not available: {exc}")
 
     vec = IndexCache.get_vector() if request.hybrid else None
     retriever: Optional[HybridRetriever] = None
@@ -80,7 +106,8 @@ def answer_endpoint(request: AnswerRequest) -> MinimalAnswer:
     try:
         bm25 = IndexCache.get_bm25()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Index not available: {exc}")
+        raise HTTPException(status_code=500,
+                            detail=f"Index not available: {exc}")
 
     vec = IndexCache.get_vector() if request.hybrid else None
     retriever: Optional[HybridRetriever] = None

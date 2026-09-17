@@ -27,7 +27,9 @@ from .models import (
 )
 
 
-def compute_iou(s1_start: int, s1_end: int, s2_start: int, s2_end: int) -> float:
+def compute_iou(
+    s1_start: int, s1_end: int, s2_start: int, s2_end: int
+) -> float:
     """Compute Intersection over Union (IoU) between two character spans."""
     inter_start = max(s1_start, s2_start)
     inter_end = min(s1_end, s2_end)
@@ -39,7 +41,8 @@ def compute_iou(s1_start: int, s1_end: int, s2_start: int, s2_end: int) -> float
 
 
 class RagCLI:
-    """Command Line Interface for indexing, searching, answering, and evaluating."""
+    """Command Line Interface for indexing, searching, answering,
+    and evaluating."""
 
     def index(
         self,
@@ -64,8 +67,9 @@ class RagCLI:
                 )
                 indexer.save(bm25_path)
                 print(
-                    f"Incremental indexing complete: {added} added, {modified} modified, "
-                    f"{deleted} deleted. Total chunks: {len(indexer.corpus)}."
+                    f"Incremental indexing complete: {added} added, "
+                    f"{modified} modified, {deleted} deleted. "
+                    f"Total chunks: {len(indexer.corpus)}."
                 )
                 return
 
@@ -75,7 +79,10 @@ class RagCLI:
             )
             chunks = get_flat_chunks(corpus_dir, max_chunk_size=max_chunk_size)
             if not chunks:
-                print(f"Warning: No valid files found to index under {corpus_dir}.")
+                print(
+                    "Warning: No valid files found to index under "
+                    f"{corpus_dir}."
+                )
                 return
 
             print(f"Collected {len(chunks)} chunks. Fitting BM25 indexer...")
@@ -96,7 +103,9 @@ class RagCLI:
             inc_mgr.save_registry()
 
             if with_embeddings:
-                print("Building semantic vector index with all-MiniLM-L6-v2...")
+                print(
+                    "Building semantic vector index with all-MiniLM-L6-v2..."
+                )
                 vec_indexer = VectorIndexer(chunks)
                 vec_indexer.fit(batch_size=128)
                 vec_indexer.save(p_dir / "vector_indexer.pkl")
@@ -116,13 +125,16 @@ class RagCLI:
         """Return top-k sources for a single natural language query."""
         try:
             if not query or not query.strip() or k <= 0:
-                print("Empty query or k <= 0 provided. Returning empty results.")
+                print(
+                    "Empty query or k <= 0 provided. Returning empty results."
+                )
                 return []
 
             p = Path(index_path)
             if not p.exists():
                 print(
-                    f"Error: Index file not found at {index_path}. Run index first.",
+                    f"Error: Index file not found at {index_path}. "
+                    "Run index first.",
                     file=sys.stderr,
                 )
                 return []
@@ -131,12 +143,18 @@ class RagCLI:
             vec_indexer = IndexCache.get_vector() if hybrid else None
             retriever = None
             if hybrid and vec_indexer is not None:
-                retriever = HybridRetriever(bm25_indexer=indexer, vector_indexer=vec_indexer)
+                retriever = HybridRetriever(
+                    bm25_indexer=indexer, vector_indexer=vec_indexer
+                )
 
-            sources = IndexCache.cached_search(indexer, query, k=k, hybrid_retriever=retriever)
+            sources = IndexCache.cached_search(
+                indexer, query, k=k, hybrid_retriever=retriever
+            )
 
             for i, src in enumerate(sources, 1):
-                span = f"({src.first_character_index}-{src.last_character_index})"
+                start_c = src.first_character_index
+                end_c = src.last_character_index
+                span = f"({start_c}-{end_c})"
                 print(f"[{i}] {src.file_path} {span}")
 
             return [src.model_dump() for src in sources]
@@ -152,7 +170,8 @@ class RagCLI:
         index_path: str = "data/processed/bm25_indexer.pkl",
         hybrid: bool = False,
     ) -> Optional[StudentSearchResults]:
-        """Run search across all questions in a dataset and save StudentSearchResults JSON."""
+        """Run search across all questions in a dataset and save
+        StudentSearchResults JSON."""
         try:
             if not dataset_path:
                 print("Error: --dataset_path is required.", file=sys.stderr)
@@ -160,7 +179,10 @@ class RagCLI:
 
             d_path = Path(dataset_path)
             if not d_path.exists():
-                print(f"Error: Dataset file not found at {dataset_path}", file=sys.stderr)
+                print(
+                    f"Error: Dataset file not found at {dataset_path}",
+                    file=sys.stderr,
+                )
                 return None
 
             try:
@@ -175,7 +197,9 @@ class RagCLI:
             vec_indexer = IndexCache.get_vector() if hybrid else None
             retriever = None
             if hybrid and vec_indexer is not None:
-                retriever = HybridRetriever(bm25_indexer=indexer, vector_indexer=vec_indexer)
+                retriever = HybridRetriever(
+                    bm25_indexer=indexer, vector_indexer=vec_indexer
+                )
 
             results: List[MinimalSearchResults] = []
             questions = rag_dataset.rag_questions
@@ -228,16 +252,23 @@ class RagCLI:
 
             p = Path(index_path)
             if not p.exists():
-                print(f"Error: Index file not found at {index_path}.", file=sys.stderr)
+                print(
+                    f"Error: Index file not found at {index_path}.",
+                    file=sys.stderr,
+                )
                 return ""
 
             indexer = IndexCache.get_bm25(p)
             vec_indexer = IndexCache.get_vector() if hybrid else None
             retriever = None
             if hybrid and vec_indexer is not None:
-                retriever = HybridRetriever(bm25_indexer=indexer, vector_indexer=vec_indexer)
+                retriever = HybridRetriever(
+                    bm25_indexer=indexer, vector_indexer=vec_indexer
+                )
 
-            sources = IndexCache.cached_search(indexer, query, k=k, hybrid_retriever=retriever)
+            sources = IndexCache.cached_search(
+                indexer, query, k=k, hybrid_retriever=retriever
+            )
             generator = AnswerGenerator.get_instance()
             answer_text = generator.generate_answer(query, sources)
 
@@ -253,22 +284,32 @@ class RagCLI:
         student_search_results_path: str = "",
         save_directory: str = "data/output/search_results_and_answer",
     ) -> Optional[StudentSearchResultsAndAnswer]:
-        """Generate grounded answers for search results and save StudentSearchResultsAndAnswer."""
+        """Generate grounded answers for search results and save
+        StudentSearchResultsAndAnswer."""
         try:
             if not student_search_results_path:
-                print("Error: --student_search_results_path is required.", file=sys.stderr)
+                print(
+                    "Error: --student_search_results_path is required.",
+                    file=sys.stderr,
+                )
                 return None
 
             in_path = Path(student_search_results_path)
             if not in_path.exists():
-                print(f"Error: Search results file not found at {in_path}", file=sys.stderr)
+                print(
+                    f"Error: Search results file not found at {in_path}",
+                    file=sys.stderr,
+                )
                 return None
 
             try:
                 with open(in_path, "r", encoding="utf-8") as f:
                     raw_data = json.load(f)
             except Exception as exc:
-                print(f"Error reading search results JSON: {exc}", file=sys.stderr)
+                print(
+                    f"Error reading search results JSON: {exc}",
+                    file=sys.stderr,
+                )
                 return None
 
             search_output = StudentSearchResults.model_validate(raw_data)
@@ -278,8 +319,14 @@ class RagCLI:
             total = len(search_output.search_results)
             print(f"Loaded {total} questions ...")
 
-            for item in tqdm(search_output.search_results, desc="Generating answers", unit="q"):
-                ans = generator.generate_answer(item.question, item.retrieved_sources)
+            for item in tqdm(
+                search_output.search_results,
+                desc="Generating answers",
+                unit="q",
+            ):
+                ans = generator.generate_answer(
+                    item.question, item.retrieved_sources
+                )
                 answered_results.append(
                     MinimalAnswer(
                         question_id=item.question_id,
@@ -315,21 +362,30 @@ class RagCLI:
         k: int = 10,
         max_context_length: int = 2000,
     ) -> Dict[str, float]:
-        """Calculate Recall@1, 3, 5, 10 against ground-truth dataset for local testing."""
+        """Calculate Recall@1, 3, 5, 10 against ground-truth dataset
+        for local testing."""
         try:
             if not student_search_results_path or not dataset_path:
-                print("Error: Both --student_search_results_path and --dataset_path are required.")
+                print(
+                    "Error: Both --student_search_results_path and "
+                    "--dataset_path are required."
+                )
                 return {}
 
             res_path = Path(student_search_results_path)
             gt_path = Path(dataset_path)
 
             if not res_path.exists() or not gt_path.exists():
-                print("Error: One or more input paths do not exist.", file=sys.stderr)
+                print(
+                    "Error: One or more input paths do not exist.",
+                    file=sys.stderr,
+                )
                 return {}
 
             with open(res_path, "r", encoding="utf-8") as f:
-                student_results = StudentSearchResults.model_validate(json.load(f))
+                student_results = StudentSearchResults.model_validate(
+                    json.load(f)
+                )
 
             with open(gt_path, "r", encoding="utf-8") as f:
                 gt_dataset = RagDataset.model_validate(json.load(f))
@@ -353,7 +409,9 @@ class RagCLI:
                 # Filter out any sources exceeding max_context_length
                 valid_retrieved = [
                     src for src in retrieved
-                    if (src.last_character_index - src.first_character_index) <= max_context_length
+                    if (
+                        src.last_character_index - src.first_character_index
+                    ) <= max_context_length
                 ]
 
                 for val in recall_k_vals:
@@ -393,7 +451,9 @@ class RagCLI:
     def serve(self, host: str = "127.0.0.1", port: int = 8000) -> None:
         """Start local HTTP API server for Bonus 5."""
         try:
-            print(f"Starting local HTTP API server on http://{host}:{port} ...")
+            print(
+                f"Starting local HTTP API server on http://{host}:{port} ..."
+            )
             start_server(host=host, port=port)
         except Exception as exc:
             print(f"Error running server: {exc}", file=sys.stderr)

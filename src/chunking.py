@@ -1,7 +1,8 @@
 """Document and code chunking module.
 
 Implements two distinct chunking strategies:
-- Python AST-based semantic chunking (functions, classes, methods, module constants)
+- Python AST-based semantic chunking
+  (functions, classes, methods, module constants)
 - Markdown hierarchical header and paragraph-based chunking
 """
 
@@ -12,7 +13,8 @@ from .models import MinimalSource
 
 
 def read_file(filename: str) -> str:
-    """Read full text content of a file using utf-8 with fallback error replacement."""
+    """Read full text content of a file using utf-8
+    with fallback error replacement."""
     try:
         with open(filename, "r", encoding="utf-8", errors="replace") as f:
             return f.read()
@@ -28,7 +30,9 @@ def get_line_offsets(text: str) -> List[int]:
     return offsets
 
 
-def get_node_span(node: ast.AST, line_offsets: List[int], total_len: int) -> Tuple[int, int]:
+def get_node_span(
+    node: ast.AST, line_offsets: List[int], total_len: int
+) -> Tuple[int, int]:
     """Calculate exact start and end character offsets for an AST node."""
     start_line = max(0, getattr(node, "lineno", 1) - 1)
     start_col = getattr(node, "col_offset", 0)
@@ -45,9 +49,13 @@ def get_node_span(node: ast.AST, line_offsets: List[int], total_len: int) -> Tup
 
 
 def _slice_window(
-    first_idx: int, last_idx: int, max_chunk_size: int, overlap_ratio: float = 0.15
+    first_idx: int,
+    last_idx: int,
+    max_chunk_size: int,
+    overlap_ratio: float = 0.15,
 ) -> List[Tuple[int, int]]:
-    """Slice a large range into overlapping sub-ranges strictly <= max_chunk_size."""
+    """Slice a large range into overlapping sub-ranges
+    strictly <= max_chunk_size."""
     if last_idx <= first_idx:
         return []
     if last_idx - first_idx <= max_chunk_size:
@@ -68,7 +76,9 @@ def _slice_window(
     return slices
 
 
-def chunk_py(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
+def chunk_py(
+    file_path: str, max_chunk_size: int = 2000
+) -> List[MinimalSource]:
     """Chunk Python files using AST node analysis and statement boundaries."""
     text = read_file(file_path)
     total_len = len(text)
@@ -86,7 +96,8 @@ def chunk_py(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
     if not tree.body:
         spans.extend(_slice_window(0, total_len, max_chunk_size))
     else:
-        # Group non-class/non-function statements at module level (constants, docstrings, imports)
+        # Group non-class/non-function statements at module level
+        # (constants, docstrings, imports)
         pending_start: int | None = None
         pending_end: int | None = None
 
@@ -96,7 +107,11 @@ def chunk_py(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 # Flush pending module-level statements
                 if pending_start is not None and pending_end is not None:
-                    spans.extend(_slice_window(pending_start, pending_end, max_chunk_size))
+                    spans.extend(
+                        _slice_window(
+                            pending_start, pending_end, max_chunk_size
+                        )
+                    )
                     pending_start, pending_end = None, None
 
                 fn_len = e_idx - s_idx
@@ -108,7 +123,11 @@ def chunk_py(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
             elif isinstance(stmt, ast.ClassDef):
                 # Flush pending module-level statements
                 if pending_start is not None and pending_end is not None:
-                    spans.extend(_slice_window(pending_start, pending_end, max_chunk_size))
+                    spans.extend(
+                        _slice_window(
+                            pending_start, pending_end, max_chunk_size
+                        )
+                    )
                     pending_start, pending_end = None, None
 
                 cls_len = e_idx - s_idx
@@ -116,29 +135,44 @@ def chunk_py(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
                     spans.append((s_idx, e_idx))
                 else:
                     # Capture class header + docstring + class attributes
-                    cls_header_end = min(e_idx, s_idx + min(max_chunk_size, 1000))
+                    cls_header_end = min(
+                        e_idx, s_idx + min(max_chunk_size, 1000)
+                    )
                     spans.append((s_idx, cls_header_end))
 
                     # Chunk class methods and nested definitions
                     for item in stmt.body:
-                        item_s, item_e = get_node_span(item, line_offsets, total_len)
+                        item_s, item_e = get_node_span(
+                            item, line_offsets, total_len
+                        )
                         item_len = item_e - item_s
-                        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        if isinstance(
+                            item, (ast.FunctionDef, ast.AsyncFunctionDef)
+                        ):
                             if item_len <= max_chunk_size:
                                 spans.append((item_s, item_e))
                             else:
-                                spans.extend(_slice_window(item_s, item_e, max_chunk_size))
+                                spans.extend(
+                                    _slice_window(
+                                        item_s, item_e, max_chunk_size
+                                    )
+                                )
                         elif item_len > 100:
-                            spans.extend(_slice_window(item_s, item_e, max_chunk_size))
+                            spans.extend(
+                                _slice_window(item_s, item_e, max_chunk_size)
+                            )
 
             else:
-                # Accumulate module-level assignments, imports, if statements, docstrings
+                # Accumulate module-level assignments, imports,
+                # if statements, docstrings
                 if pending_start is None:
                     pending_start = s_idx
                 pending_end = e_idx
 
         if pending_start is not None and pending_end is not None:
-            spans.extend(_slice_window(pending_start, pending_end, max_chunk_size))
+            spans.extend(
+                _slice_window(pending_start, pending_end, max_chunk_size)
+            )
 
     # Convert spans to MinimalSource, deduplicate and ensure non-empty
     seen = set()
@@ -173,7 +207,9 @@ def chunk_py(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
     return chunks
 
 
-def chunk_md(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
+def chunk_md(
+    file_path: str, max_chunk_size: int = 2000
+) -> List[MinimalSource]:
     """Chunk Markdown files using header hierarchy and paragraph boundaries."""
     text = read_file(file_path)
     total_len = len(text)
@@ -202,12 +238,16 @@ def chunk_md(file_path: str, max_chunk_size: int = 2000) -> List[MinimalSource]:
             for p_end in p_starts[1:]:
                 if p_end - curr_start > max_chunk_size:
                     if curr_start < p_end:
-                        spans.extend(_slice_window(curr_start, p_end, max_chunk_size))
+                        spans.extend(
+                            _slice_window(curr_start, p_end, max_chunk_size)
+                        )
                     curr_start = p_end
                 else:
                     pass
             if curr_start < total_len:
-                spans.extend(_slice_window(curr_start, total_len, max_chunk_size))
+                spans.extend(
+                    _slice_window(curr_start, total_len, max_chunk_size)
+                )
     else:
         # Slice into header sections
         sections: List[Tuple[int, int]] = []

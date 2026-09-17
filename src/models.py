@@ -4,9 +4,28 @@ Provides Pydantic models for queries, retrieved sources, answers,
 and evaluation metrics.
 """
 
-from typing import List, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Union
 import uuid
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+if TYPE_CHECKING:
+    class BaseModel:
+        """Type checking stub for BaseModel."""
+
+        def __init__(self, **kwargs: Any) -> None:
+            ...
+
+        def model_dump(self) -> Dict[str, Any]:
+            ...
+
+        def model_dump_json(self, indent: int = 2) -> str:
+            ...
+
+        @classmethod
+        def model_validate(cls: Any, obj: Any) -> Any:
+            ...
+else:
+    from pydantic import BaseModel
 
 
 class MinimalSource(BaseModel):
