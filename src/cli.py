@@ -253,7 +253,8 @@ class RagCLI:
             p = Path(index_path)
             if not p.exists():
                 print(
-                    f"Error: Index file not found at {index_path}.",
+                    f"Error: Index file not found at {index_path}. "
+                    "Please run 'uv run python3 -m src index' first.",
                     file=sys.stderr,
                 )
                 return ""
@@ -272,8 +273,6 @@ class RagCLI:
             generator = AnswerGenerator.get_instance()
             answer_text = generator.generate_answer(query, sources)
 
-            print(f"\nQuestion: {query}\n")
-            print(f"Answer:\n{answer_text}\n")
             return answer_text
         except Exception as exc:
             print(f"Error generating answer: {exc}", file=sys.stderr)

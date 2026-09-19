@@ -26,12 +26,23 @@ class AnswerGenerator:
         self.model_name = model_name
         # Optimize CPU threads for inference
         torch.set_num_threads(min(4, torch.get_num_threads()))
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float32,
-            low_cpu_mem_usage=True,
-        )
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name, local_files_only=True
+            )
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                dtype=torch.float32,
+                low_cpu_mem_usage=True,
+                local_files_only=True,
+            )
+        except Exception:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                dtype=torch.float32,
+                low_cpu_mem_usage=True,
+            )
         self.model.eval()
 
     @classmethod
@@ -72,6 +83,57 @@ class AnswerGenerator:
 
         return "\n\n".join(snippets)
 
+    def _clean_answer(self, raw_text: str) -> str:
+        """Clean generated output from reasoning tags, docstring quotes, and
+        echoes."""
+        text = raw_text.strip()
+
+        # Remove residual reasoning tokens
+        if "<think>" in text and "</think>" in text:
+            text = text.split("</think>")[-1].strip()
+        elif "</think>" in text:
+            text = text.split("</think>")[-1].strip()
+
+        # Remove docstring quotes
+        for quote in ['"""', "'''"]:
+            while text.startswith(quote):
+                text = text[len(quote):].strip()
+            while text.endswith(quote):
+                text = text[:-len(quote)].strip()
+
+        # Remove repeated role prefixes
+        prefixes = [
+            "answer:", "assistant:", "context:", "question:",
+            "system:"
+        ]
+        changed = True
+        while changed:
+            changed = False
+            lower = text.lower()
+            for p in prefixes:
+                if lower.startswith(p):
+                    text = text[len(p):].strip()
+                    changed = True
+                    break
+
+        if "\nQuestion:" in text:
+            text = text.split("\nQuestion:")[0].strip()
+        if "\nContext:" in text:
+            text = text.split("\nContext:")[0].strip()
+
+        # Deduplicate repeating consecutive lines
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        deduped: List[str] = []
+        for line in lines:
+            clean_l = line
+            for p in prefixes:
+                if clean_l.lower().startswith(p):
+                    clean_l = clean_l[len(p):].strip()
+            if not deduped or clean_l.lower() != deduped[-1].lower():
+                deduped.append(clean_l)
+
+        return " ".join(deduped).strip()
+
     def generate_answer(
         self,
         question: str,
@@ -87,12 +149,37 @@ class AnswerGenerator:
                 "question."
             )
 
-        prompt = (
-            f"Context:\n{context}\n\n"
-            f"Question: {question}\n\n"
-            "Answer the question directly and concisely in 1-2 sentences "
-            "based on the context above:\n"
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a helpful assistant. Answer the user question "
+                    "directly and concisely in 1-2 sentences strictly based "
+                    "on the provided context. If the context does not contain "
+                    "the answer, state that clearly."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Context:\n{context}\n\nQuestion: {question}",
+            },
+        ]
+
+        # Use ChatML template with disabled thinking to directly yield answers
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        except TypeError:
+            # Fallback if tokenizer does not support enable_thinking arg
+            prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
 
         inputs = self.tokenizer(
             prompt, return_tensors="pt", truncation=True, max_length=1024
@@ -105,23 +192,16 @@ class AnswerGenerator:
                 do_sample=False,
                 use_cache=True,
                 pad_token_id=self.tokenizer.eos_token_id,
+                repetition_penalty=1.15,
             )
 
         input_len = inputs["input_ids"].shape[1]
         new_tokens = outputs[0][input_len:]
-        answer = self.tokenizer.decode(
+        raw_answer = self.tokenizer.decode(
             new_tokens, skip_special_tokens=True
         ).strip()
 
-        # Clean prompt markers and duplicate prefixes
-        while answer.lower().startswith("answer:"):
-            answer = answer[len("answer:"):].strip()
-        if "\n\n" in answer:
-            answer = answer.split("\n\n")[0].strip()
-        if "\nQuestion:" in answer:
-            answer = answer.split("\nQuestion:")[0].strip()
-        if "Context:" in answer:
-            answer = answer.split("Context:")[0].strip()
+        answer = self._clean_answer(raw_answer)
 
         return (
             answer

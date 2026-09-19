@@ -3,14 +3,18 @@
 Bonus 1: Semantic embeddings vector index next to lexical BM25 index.
 """
 
+import os
 from pathlib import Path
 import pickle
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 import numpy as np
-from sentence_transformers import SentenceTransformer
+import torch
 from tqdm import tqdm
 from .chunking import read_file
 from .models import MinimalSource
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 
 MODEL_NAME = "all-MiniLM-L6-v2"
@@ -29,14 +33,24 @@ class VectorIndexer:
         and CPU sentence transformer."""
         self.corpus: List[MinimalSource] = corpus or []
         self.model_name = model_name
-        self._model: Optional[SentenceTransformer] = None
+        self._model: Optional["SentenceTransformer"] = None
         self.embeddings: Optional[np.ndarray] = None
 
     @property
-    def model(self) -> SentenceTransformer:
+    def model(self) -> "SentenceTransformer":
         """Lazily load SentenceTransformer model on CPU."""
         if self._model is None:
-            self._model = SentenceTransformer(self.model_name, device="cpu")
+            torch.set_num_threads(min(8, os.cpu_count() or 4))
+            from sentence_transformers import SentenceTransformer
+            try:
+                self._model = SentenceTransformer(
+                    self.model_name, device="cpu", local_files_only=True
+                )
+            except Exception:
+                self._model = SentenceTransformer(
+                    self.model_name, device="cpu"
+                )
+            self._model.max_seq_length = 128
         return self._model
 
     def fit(
@@ -60,8 +74,8 @@ class VectorIndexer:
             snippet = content[
                 item.first_character_index:item.last_character_index
             ].strip()
-            # Include file path header for semantic context
-            texts.append(f"{item.file_path}\n{snippet[:800]}")
+            # Include file path header and compact snippet for semantic context
+            texts.append(f"{item.file_path}\n{snippet[:400]}")
 
         self.corpus = corpus_subset
         self.embeddings = self.model.encode(
