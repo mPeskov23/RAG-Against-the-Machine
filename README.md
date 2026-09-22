@@ -218,7 +218,7 @@ Batch dataset search:
 
 ```bash
 uv run python -m src search_dataset \
-    --dataset_path data/datasets/UnansweredQuestions/dataset_docs_public.json \
+    --dataset_path data/datasets_public/UnansweredQuestions/dataset_docs_public.json \
     --k 10 \
     --save_directory data/output/search_results/UnansweredQuestions
 ```
@@ -246,7 +246,7 @@ Evaluate against ground truth with the local evaluate command:
 ```bash
 uv run python -m src evaluate \
     --student_search_results_path data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
-    --dataset_path data/datasets/AnsweredQuestions/dataset_docs_public.json \
+    --dataset_path data/datasets_public/AnsweredQuestions/dataset_docs_public.json \
     --k 10
 ```
 
@@ -255,7 +255,7 @@ Evaluate with the official moulinette:
 ```bash
 ./moulinette/moulinette evaluate_student_search_results \
     data/output/search_results/UnansweredQuestions/dataset_docs_public.json \
-    data/datasets/AnsweredQuestions/dataset_docs_public.json \
+    data/datasets_public/AnsweredQuestions/dataset_docs_public.json \
     --k 10 --max_context_length 2000
 ```
 
