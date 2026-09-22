@@ -32,7 +32,7 @@ moulinette:
 serve:
 	uv run python -m src serve --host 127.0.0.1 --port 8000
 
-run: index search-dataset answer-dataset evaluate
+run: install index search-dataset answer-dataset evaluate
 
 
 debug:
