@@ -328,4 +328,6 @@ AI assistance was utilized in accordance with Chapter III (AI Instructions):
 - **Boilerplate and Structure**: Drafting initial Pydantic schema validation structures and FastAPI route scaffolding.
 - **Algorithm Exploration**: Reviewing parameter ranges for Okapi BM25 and Reciprocal Rank Fusion formulas.
 - **Code Review**: Identifying missed AST nodes (such as module constants in `chunking.py`) and debugging static typing edge cases with `mypy`.
+- **Advanced Document Chunking Strategy**: Creating a strategy to achieve 93% Recall@5 on documentation (public dataset)
+- **Documentation Generation**: Including README.md and docstrings.
 - **Validation**: All AI-assisted components were manually reviewed, rewritten where needed, benchmarked on CPU, and tested against the project's evaluation moulinette.
