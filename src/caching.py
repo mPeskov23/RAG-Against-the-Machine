@@ -128,11 +128,12 @@ class IndexCache:
         query: str,
         k: int = 10,
         hybrid_retriever: Optional[HybridRetriever] = None,
+        doc_type: Optional[str] = None,
     ) -> List[MinimalSource]:
         """Perform search with query cache acceleration."""
         cache = cls.get_query_cache()
         use_hybrid = hybrid_retriever is not None
-        cached = cache.get(query, k, hybrid=use_hybrid)
+        cached = cache.get(query, k, hybrid=use_hybrid, doc_type=doc_type)
         if cached is not None and isinstance(cached, list):
             cached_sources: List[MinimalSource] = []
             for item in cached:
@@ -153,10 +154,14 @@ class IndexCache:
         if hybrid_retriever is not None:
             results = hybrid_retriever.retrieve(query, top_k=k)
         else:
-            scored = indexer.score_query(query, top_k=k)
+            scored = indexer.score_query(query, top_k=k, doc_type=doc_type)
             results = [indexer.corpus[doc_id] for doc_id, _ in scored]
 
         cache.set(
-            query, k, [r.model_dump() for r in results], hybrid=use_hybrid
+            query,
+            k,
+            [r.model_dump() for r in results],
+            hybrid=use_hybrid,
+            doc_type=doc_type,
         )
         return results

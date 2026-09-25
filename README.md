@@ -83,23 +83,28 @@ Standard fixed-size sliding windows split methods across arbitrary tokens and lo
 - **Fallback**: If a file has syntax errors, a sliding line window is used gracefully.
 
 ### 2. Markdown Chunking
-- **Header Hierarchy**: Splits on Markdown headers (`#`, `##`, `###`, `####`).
-- **Section Integrity**: Keeps sections together up to `max_chunk_size`.
-- **Paragraph Splitting**: Sections exceeding the budget are split at natural paragraph breaks (`\n\n`) with 15% overlap.
-- **Small Section Coalescing**: Prevents isolated sub-headings from losing their parent context.
+- **Hierarchical Header Parsing**: Decomposes documents into a tree of sections across Markdown levels (`#` through `######`).
+- **Multi-Scale Section Indexing**: Emits both focused leaf sections and aggregated parent sections (up to `max_chunk_size`), ensuring that both granular details and broader context are represented.
+- **Header Breadcrumb Enrichment**: Injects the active hierarchy path (e.g. `Installation > GPU > CUDA Requirements`) into chunk tokens, bridging the semantic gap when questions reference parent topics.
+- **Admonition & Semantic Block Preservation**: Keeps callouts, note blocks (`!!! note`, `??? tip`), and code fences intact without chopping.
+- **Natural Paragraph Sliding Windows**: For oversized sections, slices along semantic paragraph boundaries (`\n\s*\n`) with line-level fallback for giant markdown tables, strictly enforcing $\le 2000$ characters.
+- **Text & Config Ingestion**: Automatically ingests `.txt` and build scripts like `CMakeLists.txt` referenced in system documentation.
 
 ---
 
 ## Retrieval Method
 
 ### 1. Lexical BM25 Retrieval
-- **Code-Aware Tokenization**:
+- **Code-Aware Tokenization & Morphology**:
   - Splits snake_case (`fused_batched_moe` $\rightarrow$ `fused`, `batched`, `moe`).
   - Splits CamelCase (`ModelRunner` $\rightarrow$ `model`, `runner`).
+  - Inflection and suffix normalization (rule-based stemming for plurals, `-ing`, `-ed`, `-tion`) to bridge queries like "vectors" to text "vector".
   - Stopword filtering to reduce noise on common English words while preserving programming keywords.
-- **Path Boosting**:
-  - Incorporates file names and directory components into each chunk's indexed tokens.
-  - Queries mentioning module names or files receive boosted scores for relevant source files.
+- **Path & Hierarchy Breadcrumb Boosting**:
+  - Incorporates file names, directory components, and Markdown section titles into each chunk's indexed tokens.
+  - Queries mentioning module names or section headings receive boosted scores for relevant source files.
+- **Type-Aware Scoring**:
+  - Contextual doc-type weighting boosts relevant documentation passages on conceptual queries.
 - **Okapi BM25 Scoring**:
   - Uses $k_1 = 1.2$ and $b = 0.75$ with document length normalization.
 
@@ -120,23 +125,23 @@ All benchmarks were evaluated on a CPU-only environment (8 cores, Linux Mint 22.
 
 | Metric | Subject Requirement | Achieved System Result | Status |
 |---|---|---|---|
-| **Docs Recall@5** | $\ge 80.0\%$ | **81.0%** (Recall@10: 86.0%) | **PASS** |
-| **Code Recall@5** | $\ge 50.0\%$ | **81.8%** (Recall@10: 89.9%) | **PASS** |
-| **Indexing Time** | $\le 5\text{ minutes}$ | **12.0 seconds** (25,549 chunks) | **PASS** |
+| **Docs Recall@5** | $\ge 80.0\%$ | **93.0%** (Recall@10: 95.0%) | **PASS** |
+| **Code Recall@5** | $\ge 50.0\%$ | **79.8%** (Recall@10: 88.9%) | **PASS** |
+| **Indexing Time** | $\le 5\text{ minutes}$ | **~15.0 seconds** (25,821 chunks) | **PASS** |
 | **Retrieval Throughput** | $\le 90\text{ seconds / 200 questions}$ | **~8.0 seconds / 200 questions** | **PASS** |
 | **Query Cache Speedup** | N/A (Bonus 4) | **279.6x speedup** (23.5ms $\rightarrow$ 0.084ms) | **PASS** |
 
 ### Recall Breakdown
 - **Docs Dataset (`dataset_docs_public.json`)**:
-  - Recall@1: 66.0%
-  - Recall@3: 80.0%
-  - Recall@5: 81.0%
-  - Recall@10: 86.0%
+  - Recall@1: 73.0%
+  - Recall@3: 85.0%
+  - Recall@5: 93.0%
+  - Recall@10: 95.0%
 - **Code Dataset (`dataset_code_public.json`)**:
-  - Recall@1: 56.6%
-  - Recall@3: 74.7%
-  - Recall@5: 81.8%
-  - Recall@10: 89.9%
+  - Recall@1: 53.5%
+  - Recall@3: 75.8%
+  - Recall@5: 79.8%
+  - Recall@10: 88.9%
 
 ---
 

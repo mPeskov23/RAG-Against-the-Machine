@@ -207,10 +207,79 @@ def chunk_py(
     return chunks
 
 
+def _split_blocks_with_overlap(
+    text: str,
+    start_char: int,
+    end_char: int,
+    max_chunk_size: int = 2000,
+    target_overlap: int = 300,
+) -> List[Tuple[int, int]]:
+    """Split a section of text into overlapping block chunks cleanly."""
+    sec_text = text[start_char:end_char]
+    p_matches = list(re.finditer(r"\n\s*\n", sec_text))
+
+    if not p_matches:
+        spans: List[Tuple[int, int]] = []
+        c_start = 0
+        while c_start < len(sec_text):
+            c_end = min(len(sec_text), c_start + max_chunk_size)
+            if c_end < len(sec_text):
+                last_nl = sec_text.rfind("\n", c_start, c_end)
+                if last_nl > c_start:
+                    c_end = last_nl + 1
+            spans.append((start_char + c_start, start_char + c_end))
+            if c_end >= len(sec_text):
+                break
+            c_start += max(200, max_chunk_size - target_overlap)
+        return spans
+
+    b_starts = [0] + [m.end() for m in p_matches]
+    b_ends = [m.start() for m in p_matches] + [len(sec_text)]
+    blocks = [(s, e) for s, e in zip(b_starts, b_ends) if e > s]
+
+    spans = []
+    curr_i = 0
+    while curr_i < len(blocks):
+        s_idx = blocks[curr_i][0]
+        end_i = curr_i
+        while end_i < len(blocks) and (
+            blocks[end_i][1] - s_idx
+        ) <= max_chunk_size:
+            end_i += 1
+
+        if end_i == curr_i:
+            bs, be = blocks[curr_i]
+            c_start = bs
+            while c_start < be:
+                c_end = min(be, c_start + max_chunk_size)
+                if c_end < be:
+                    last_nl = sec_text.rfind("\n", c_start, c_end)
+                    if last_nl > c_start:
+                        c_end = last_nl + 1
+                spans.append((start_char + c_start, start_char + c_end))
+                if c_end >= be:
+                    break
+                c_start += max(200, max_chunk_size - target_overlap)
+            curr_i += 1
+        else:
+            e_idx = blocks[end_i - 1][1]
+            spans.append((start_char + s_idx, start_char + e_idx))
+            if end_i >= len(blocks):
+                break
+            next_i = end_i
+            while next_i > curr_i + 1 and (
+                e_idx - blocks[next_i - 1][0]
+            ) < target_overlap:
+                next_i -= 1
+            curr_i = next_i
+
+    return spans
+
+
 def chunk_md(
     file_path: str, max_chunk_size: int = 2000
 ) -> List[MinimalSource]:
-    """Chunk Markdown files using header hierarchy and paragraph boundaries."""
+    """Chunk Markdown files using hierarchical headers and semantic blocks."""
     text = read_file(file_path)
     total_len = len(text)
     if not text.strip():
@@ -218,73 +287,85 @@ def chunk_md(
 
     lines = text.splitlines(keepends=True)
     line_offsets = get_line_offsets(text)
-    header_indices: List[int] = []
 
+    headers: List[Tuple[int, int, str]] = []
     for i, line in enumerate(lines):
-        if re.match(r"^#{1,6}\s+", line):
-            header_indices.append(i)
+        m = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if m:
+            headers.append(
+                (line_offsets[i], len(m.group(1)), m.group(2).strip())
+            )
 
-    spans: List[Tuple[int, int]] = []
+    raw_spans: List[Tuple[int, int]] = []
 
-    if not header_indices:
-        # No headers found; split by paragraph boundaries
-        paragraphs = [m.start() for m in re.finditer(r"\n\s*\n", text)]
-        if not paragraphs:
-            spans.extend(_slice_window(0, total_len, max_chunk_size))
-        else:
-            p_starts = [0] + [p + 1 for p in paragraphs]
-            p_starts.append(total_len)
-            curr_start = 0
-            for p_end in p_starts[1:]:
-                if p_end - curr_start > max_chunk_size:
-                    if curr_start < p_end:
-                        spans.extend(
-                            _slice_window(curr_start, p_end, max_chunk_size)
-                        )
-                    curr_start = p_end
-                else:
-                    pass
-            if curr_start < total_len:
-                spans.extend(
-                    _slice_window(curr_start, total_len, max_chunk_size)
-                )
+    def add_span(s: int, e: int) -> None:
+        s = max(0, min(s, total_len))
+        e = max(s, min(e, total_len))
+        while e > s and text[e - 1] in " \t\r\n":
+            e -= 1
+        while s < e and text[s] in " \t\r\n":
+            s += 1
+        if 40 <= (e - s) <= max_chunk_size:
+            raw_spans.append((s, e))
+
+    if not headers:
+        for s, e in _split_blocks_with_overlap(
+            text, 0, total_len, max_chunk_size=max_chunk_size
+        ):
+            add_span(s, e)
     else:
-        # Slice into header sections
-        sections: List[Tuple[int, int]] = []
-        if header_indices[0] > 0:
-            sections.append((0, line_offsets[header_indices[0]]))
+        if headers[0][0] > 0:
+            add_span(0, headers[0][0])
 
-        for idx, h_idx in enumerate(header_indices):
-            s_char = line_offsets[h_idx]
-            if idx + 1 < len(header_indices):
-                e_char = line_offsets[header_indices[idx + 1]]
-            else:
-                e_char = total_len
-            sections.append((s_char, e_char))
-
-        for s_char, e_char in sections:
+        for i in range(len(headers)):
+            s_char = headers[i][0]
+            e_char = headers[i + 1][0] if i + 1 < len(headers) else total_len
             sec_len = e_char - s_char
-            if sec_len <= 0:
-                continue
             if sec_len <= max_chunk_size:
-                spans.append((s_char, e_char))
+                add_span(s_char, e_char)
             else:
-                spans.extend(_slice_window(s_char, e_char, max_chunk_size))
+                for s, e in _split_blocks_with_overlap(
+                    text, s_char, e_char, max_chunk_size=max_chunk_size
+                ):
+                    add_span(s, e)
+
+        for i in range(len(headers)):
+            s_char, lvl, _ = headers[i]
+            e_char = total_len
+            for j in range(i + 1, len(headers)):
+                if headers[j][1] <= lvl:
+                    e_char = headers[j][0]
+                    break
+            if e_char - s_char <= max_chunk_size:
+                add_span(s_char, e_char)
+
+        for m in re.finditer(
+            r"^\s*(?:!{3}|\?{3})\s+.*?(?=\n\n|\Z)",
+            text,
+            flags=re.DOTALL | re.MULTILINE,
+        ):
+            add_span(m.start(), m.end())
 
     seen = set()
     chunks: List[MinimalSource] = []
-    for s_idx, e_idx in spans:
-        s_idx = max(0, min(s_idx, total_len))
-        e_idx = max(s_idx, min(e_idx, total_len))
-        if e_idx - s_idx > 0 and (s_idx, e_idx) not in seen:
-            seen.add((s_idx, e_idx))
-            if e_idx - s_idx > max_chunk_size:
-                e_idx = s_idx + max_chunk_size
+    for s, e in sorted(raw_spans):
+        if (s, e) not in seen:
+            seen.add((s, e))
             chunks.append(
                 MinimalSource(
                     file_path=file_path,
-                    first_character_index=s_idx,
-                    last_character_index=e_idx,
+                    first_character_index=s,
+                    last_character_index=e,
+                )
+            )
+
+    if not chunks:
+        for s, e in _slice_window(0, total_len, max_chunk_size):
+            chunks.append(
+                MinimalSource(
+                    file_path=file_path,
+                    first_character_index=s,
+                    last_character_index=e,
                 )
             )
 

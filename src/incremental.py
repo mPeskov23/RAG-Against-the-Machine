@@ -68,7 +68,11 @@ class IncrementalIndexManager:
         current_files: Dict[str, Path] = {
             str(p): p
             for p in base.rglob("*")
-            if p.is_file() and p.suffix in [".py", ".md"]
+            if p.is_file()
+            and (
+                p.suffix in [".py", ".md", ".txt"]
+                or p.name == "CMakeLists.txt"
+            )
         }
 
         added: List[Path] = []

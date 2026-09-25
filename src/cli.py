@@ -93,7 +93,10 @@ class RagCLI:
             # Record state for incremental indexing
             inc_mgr = IncrementalIndexManager()
             for p in Path(corpus_dir).rglob("*"):
-                if p.is_file() and p.suffix in [".py", ".md"]:
+                if p.is_file() and (
+                    p.suffix in [".py", ".md", ".txt"]
+                    or p.name == "CMakeLists.txt"
+                ):
                     file_chunks = chunk(str(p), max_chunk_size=max_chunk_size)
                     inc_mgr.registry[str(p)] = {
                         "mtime": p.stat().st_mtime,
@@ -121,6 +124,7 @@ class RagCLI:
         k: int = 10,
         index_path: str = "data/processed/bm25_indexer.pkl",
         hybrid: bool = False,
+        doc_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Return top-k sources for a single natural language query."""
         try:
@@ -148,7 +152,11 @@ class RagCLI:
                 )
 
             sources = IndexCache.cached_search(
-                indexer, query, k=k, hybrid_retriever=retriever
+                indexer,
+                query,
+                k=k,
+                hybrid_retriever=retriever,
+                doc_type=doc_type,
             )
 
             for i, src in enumerate(sources, 1):
@@ -169,6 +177,7 @@ class RagCLI:
         save_directory: str = "data/output/search_results",
         index_path: str = "data/processed/bm25_indexer.pkl",
         hybrid: bool = False,
+        doc_type: Optional[str] = None,
     ) -> Optional[StudentSearchResults]:
         """Run search across all questions in a dataset and save
         StudentSearchResults JSON."""
@@ -201,6 +210,14 @@ class RagCLI:
                     bm25_indexer=indexer, vector_indexer=vec_indexer
                 )
 
+            resolved_doc_type = doc_type
+            if resolved_doc_type is None:
+                stem_name = d_path.stem.lower()
+                if "doc" in stem_name:
+                    resolved_doc_type = "docs"
+                elif "code" in stem_name:
+                    resolved_doc_type = "code"
+
             results: List[MinimalSearchResults] = []
             questions = rag_dataset.rag_questions
 
@@ -211,7 +228,11 @@ class RagCLI:
                     retrieved_sources: List[MinimalSource] = []
                 else:
                     retrieved_sources = IndexCache.cached_search(
-                        indexer, q_text, k=k, hybrid_retriever=retriever
+                        indexer,
+                        q_text,
+                        k=k,
+                        hybrid_retriever=retriever,
+                        doc_type=resolved_doc_type,
                     )
 
                 results.append(

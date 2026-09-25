@@ -34,6 +34,32 @@ STOPWORDS: Set[str] = {
 }
 
 
+def stem(word: str) -> str:
+    """Normalize common English word suffixes (plural, verb inflections)."""
+    w = word.lower()
+    if len(w) <= 3:
+        return w
+    if w.endswith("ies") and len(w) > 4:
+        return w[:-3] + "y"
+    if w.endswith("es") and len(w) > 3 and w[-3] in "shxz":
+        return w[:-2]
+    if w.endswith("s") and not w.endswith("ss") and len(w) > 3:
+        return w[:-1]
+    if w.endswith("ing") and len(w) > 5:
+        base = w[:-3]
+        if base.endswith("at") or base.endswith("iz"):
+            return base + "e"
+        return base
+    if w.endswith("ed") and len(w) > 4:
+        base = w[:-2]
+        if base.endswith("at") or base.endswith("iz"):
+            return base + "e"
+        return base
+    if w.endswith("tion") and len(w) > 5:
+        return w[:-4] + "te"
+    return w
+
+
 def split_identifier(identifier: str) -> List[str]:
     """Split identifier into subwords by underscores and CamelCase
     boundaries."""
@@ -59,9 +85,11 @@ def split_identifier(identifier: str) -> List[str]:
     return results
 
 
-def tokenize(text: str, file_path: str = "") -> List[str]:
-    """Extract tokens from text and file path with code identifier
-    decomposition."""
+def tokenize(
+    text: str, file_path: str = "", header_context: str = ""
+) -> List[str]:
+    """Extract tokens from text, file path, and header context with code
+    identifier decomposition and inflection normalization."""
     tokens: List[str] = []
 
     # File path tokens (boosted for matching module/file names)
@@ -73,8 +101,23 @@ def tokenize(text: str, file_path: str = "") -> List[str]:
             subparts = split_identifier(part)
             for sp in subparts:
                 if len(sp) > 1 and sp not in STOPWORDS:
-                    # Double-weight path tokens to reinforce document identity
+                    st = stem(sp)
                     tokens.extend([sp, sp])
+                    if st != sp:
+                        tokens.extend([st, st])
+
+    # Header context tokens (boosted for section topic matching)
+    if header_context:
+        h_words = re.findall(r"[a-zA-Z0-9_]+", header_context)
+        for word in h_words:
+            if len(word) <= 1:
+                continue
+            for sp in split_identifier(word):
+                if len(sp) > 1 and sp not in STOPWORDS:
+                    st = stem(sp)
+                    tokens.extend([sp, sp])
+                    if st != sp:
+                        tokens.extend([st, st])
 
     # Body tokens
     words = re.findall(r"[a-zA-Z0-9_]+", text)
@@ -85,6 +128,9 @@ def tokenize(text: str, file_path: str = "") -> List[str]:
         for sp in subparts:
             if len(sp) > 1 and sp not in STOPWORDS:
                 tokens.append(sp)
+                st = stem(sp)
+                if st != sp:
+                    tokens.append(st)
 
     return tokens
 
@@ -92,13 +138,15 @@ def tokenize(text: str, file_path: str = "") -> List[str]:
 def get_flat_chunks(
     dir_path: str, max_chunk_size: int = 2000
 ) -> List[MinimalSource]:
-    """Recursively collect chunks from all Python and Markdown files
+    """Recursively collect chunks from all Python, Markdown, and text doc files
     under dir_path."""
     chunk_list: List[MinimalSource] = []
     base = Path(dir_path)
     all_files = [
         p for p in base.rglob("*")
-        if p.is_file() and p.suffix in [".py", ".md"]
+        if p.is_file() and (
+            p.suffix in [".py", ".md", ".txt"] or p.name == "CMakeLists.txt"
+        )
     ]
 
     for file_path in tqdm(all_files, desc="Chunking files", unit="file"):
@@ -125,6 +173,7 @@ class BM25Indexer:
         """Build term frequency dictionary and inverted index
         for all corpus documents."""
         file_cache: Dict[str, str] = {}
+        header_cache: Dict[str, List[Tuple[int, str]]] = {}
         self.doc_lengths = []
         self.inverted_index = {}
 
@@ -136,11 +185,32 @@ class BM25Indexer:
             end = entry.last_character_index
 
             if name not in file_cache:
-                file_cache[name] = read_file(name)
+                file_text = read_file(name)
+                file_cache[name] = file_text
+                if name.endswith(".md") or name.endswith(".txt"):
+                    hdrs: List[Tuple[int, str]] = []
+                    curr_off = 0
+                    for line in file_text.splitlines(keepends=True):
+                        m = re.match(r"^(#{1,6})\s+(.*)$", line)
+                        if m:
+                            hdrs.append((curr_off, m.group(2).strip()))
+                        curr_off += len(line)
+                    header_cache[name] = hdrs
 
             file_text = file_cache[name]
             text_chunk = file_text[start:end]
-            tokens = tokenize(text_chunk, file_path=name)
+
+            h_context = ""
+            if name in header_cache:
+                matching_hdrs = [
+                    h[1] for h in header_cache[name] if h[0] <= start
+                ]
+                if matching_hdrs:
+                    h_context = " ".join(matching_hdrs[-2:])
+
+            tokens = tokenize(
+                text_chunk, file_path=name, header_context=h_context
+            )
 
             doc_len = len(tokens)
             self.doc_lengths.append(doc_len)
@@ -176,6 +246,7 @@ class BM25Indexer:
         k1: Optional[float] = None,
         b: Optional[float] = None,
         top_k: Optional[int] = None,
+        doc_type: Optional[str] = None,
     ) -> List[Tuple[int, float]]:
         """Score all documents against query tokens using BM25 formula."""
         k1_val = k1 if k1 is not None else self.k1
@@ -203,6 +274,17 @@ class BM25Indexer:
                 denom = tf + k1_val * len_norm
                 term_score = idf * (tf * (k1_val + 1.0)) / denom
                 scores[doc_id] = scores.get(doc_id, 0.0) + term_score
+
+        if doc_type == "docs":
+            for doc_id in scores:
+                fp = self.corpus[doc_id].file_path
+                if fp.endswith(".md") or fp.endswith(".txt") or "/docs/" in fp:
+                    scores[doc_id] *= 1.3
+        elif doc_type == "code":
+            for doc_id in scores:
+                fp = self.corpus[doc_id].file_path
+                if fp.endswith(".py"):
+                    scores[doc_id] *= 1.3
 
         ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         if top_k is not None:
