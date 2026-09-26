@@ -289,13 +289,6 @@ def chunk_md(
     line_offsets = get_line_offsets(text)
 
     headers: List[Tuple[int, int, str]] = []
-    for i, line in enumerate(lines):
-        m = re.match(r"^(#{1,6})\s+(.*)$", line)
-        if m:
-            headers.append(
-                (line_offsets[i], len(m.group(1)), m.group(2).strip())
-            )
-
     raw_spans: List[Tuple[int, int]] = []
 
     def add_span(s: int, e: int) -> None:
@@ -305,8 +298,25 @@ def chunk_md(
             e -= 1
         while s < e and text[s] in " \t\r\n":
             s += 1
-        if 40 <= (e - s) <= max_chunk_size:
+        if 1 <= (e - s) <= max_chunk_size:
             raw_spans.append((s, e))
+
+    for i, line in enumerate(lines):
+        m = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if m:
+            s_offset = line_offsets[i]
+            e_offset = s_offset + len(line.rstrip())
+            headers.append(
+                (s_offset, len(m.group(1)), m.group(2).strip())
+            )
+            add_span(s_offset, e_offset)
+
+    # Emit anchor links (e.g. [](){ #chat-template } or <a id="...">)
+    anchor_pattern = (
+        r"\[\]\(\)\{\s*#[^}]+\s*\}|<a\s+id=[\'\"][^\'\"]+[\'\"]|\{:\s*#[^}]+\}"
+    )
+    for m in re.finditer(anchor_pattern, text):
+        add_span(m.start(), m.end())
 
     if not headers:
         for s, e in _split_blocks_with_overlap(

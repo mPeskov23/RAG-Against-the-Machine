@@ -123,25 +123,21 @@ This preserves keyword matching for exact symbols while leveraging semantic simi
 
 All benchmarks were evaluated on a CPU-only environment (8 cores, Linux Mint 22.3):
 
-| Metric | Subject Requirement | Achieved System Result | Status |
-|---|---|---|---|
-| **Docs Recall@5** | $\ge 80.0\%$ | **93.0%** (Recall@10: 95.0%) | **PASS** |
-| **Code Recall@5** | $\ge 50.0\%$ | **79.8%** (Recall@10: 88.9%) | **PASS** |
-| **Indexing Time** | $\le 5\text{ minutes}$ | **~15.0 seconds** (25,821 chunks) | **PASS** |
-| **Retrieval Throughput** | $\le 90\text{ seconds / 200 questions}$ | **~8.0 seconds / 200 questions** | **PASS** |
-| **Query Cache Speedup** | N/A (Bonus 4) | **279.6x speedup** (23.5ms $\rightarrow$ 0.084ms) | **PASS** |
+| Metric | Subject Requirement | Achieved Result (Public) | Achieved Result (Private) | Status |
+|---|---|---|---|---|
+| **Docs Recall@5** | $\ge 80.0\%$ | **92.0%** (R@10: 94.0%) | **88.0%** (R@10: 91.0%) | **PASS** |
+| **Code Recall@5** | $\ge 50.0\%$ | **85.9%** (R@10: 89.9%) | **82.0%** (R@10: 85.0%) | **PASS** |
+| **Indexing Time** | $\le 5\text{ minutes}$ | **~10.0 seconds** (27,668 chunks) | **~10.0 seconds** | **PASS** |
+| **Retrieval Throughput** | $\le 90\text{ seconds / 200 questions}$ | **~7.5 seconds / 200 questions** | **~7.5 seconds** | **PASS** |
+| **Query Cache Speedup** | N/A (Bonus 4) | **279.6x speedup** (23.5ms $\rightarrow$ 0.084ms) | **279.6x speedup** | **PASS** |
 
 ### Recall Breakdown
-- **Docs Dataset (`dataset_docs_public.json`)**:
-  - Recall@1: 73.0%
-  - Recall@3: 85.0%
-  - Recall@5: 93.0%
-  - Recall@10: 95.0%
-- **Code Dataset (`dataset_code_public.json`)**:
-  - Recall@1: 53.5%
-  - Recall@3: 75.8%
-  - Recall@5: 79.8%
-  - Recall@10: 88.9%
+- **Public Datasets**:
+  - Docs: Recall@1: 72.0% \| Recall@3: 87.0% \| **Recall@5: 92.0%** \| Recall@10: 94.0%
+  - Code: Recall@1: 52.5% \| Recall@3: 78.8% \| **Recall@5: 85.9%** \| Recall@10: 89.9%
+- **Private Datasets**:
+  - Docs: Recall@1: 64.0% \| Recall@3: 79.0% \| **Recall@5: 88.0%** \| Recall@10: 91.0%
+  - Code: Recall@1: 49.0% \| Recall@3: 75.0% \| **Recall@5: 82.0%** \| Recall@10: 85.0%
 
 ---
 
@@ -328,4 +324,7 @@ AI assistance was utilized in accordance with Chapter III (AI Instructions):
 - **Boilerplate and Structure**: Drafting initial Pydantic schema validation structures and FastAPI route scaffolding.
 - **Algorithm Exploration**: Reviewing parameter ranges for Okapi BM25 and Reciprocal Rank Fusion formulas.
 - **Code Review**: Identifying missed AST nodes (such as module constants in `chunking.py`) and debugging static typing edge cases with `mypy`.
+- **Documentation**: Drafting initial README.md and docstrings.
+- **Testing**: Generating additional test cases for the project.
+- **Benchmarking**: Generating benchmarking code for the project.
 - **Validation**: All AI-assisted components were manually reviewed, rewritten where needed, benchmarked on CPU, and tested against the project's evaluation moulinette.

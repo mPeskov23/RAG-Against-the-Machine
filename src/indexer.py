@@ -106,6 +106,28 @@ def tokenize(
                     if st != sp:
                         tokens.extend([st, st])
 
+        # Filename stem boost (high specificity for dedicated files)
+        stem_name = Path(file_path).stem
+        for sp in split_identifier(stem_name):
+            if len(sp) > 1 and sp not in STOPWORDS:
+                st = stem(sp)
+                tokens.extend([sp] * 4)
+                if st != sp:
+                    tokens.extend([st] * 4)
+
+        # Domain knowledge: CLI stands for Command Line Interface
+        if "/cli" in file_path.lower():
+            tokens.extend(
+                [
+                    "command",
+                    "command",
+                    "interface",
+                    "interface",
+                    "cli",
+                    "cli",
+                ]
+            )
+
     # Header context tokens (boosted for section topic matching)
     if header_context:
         h_words = re.findall(r"[a-zA-Z0-9_]+", header_context)
@@ -173,7 +195,7 @@ class BM25Indexer:
         """Build term frequency dictionary and inverted index
         for all corpus documents."""
         file_cache: Dict[str, str] = {}
-        header_cache: Dict[str, List[Tuple[int, str]]] = {}
+        header_cache: Dict[str, List[Tuple[int, int, str]]] = {}
         self.doc_lengths = []
         self.inverted_index = {}
 
@@ -188,12 +210,18 @@ class BM25Indexer:
                 file_text = read_file(name)
                 file_cache[name] = file_text
                 if name.endswith(".md") or name.endswith(".txt"):
-                    hdrs: List[Tuple[int, str]] = []
+                    hdrs: List[Tuple[int, int, str]] = []
                     curr_off = 0
                     for line in file_text.splitlines(keepends=True):
                         m = re.match(r"^(#{1,6})\s+(.*)$", line)
                         if m:
-                            hdrs.append((curr_off, m.group(2).strip()))
+                            hdrs.append(
+                                (
+                                    curr_off,
+                                    len(m.group(1)),
+                                    m.group(2).strip(),
+                                )
+                            )
                         curr_off += len(line)
                     header_cache[name] = hdrs
 
@@ -202,11 +230,16 @@ class BM25Indexer:
 
             h_context = ""
             if name in header_cache:
-                matching_hdrs = [
-                    h[1] for h in header_cache[name] if h[0] <= start
-                ]
-                if matching_hdrs:
-                    h_context = " ".join(matching_hdrs[-2:])
+                stack: List[Tuple[int, str]] = []
+                for h_off, h_lvl, h_title in header_cache[name]:
+                    if h_off <= start:
+                        while stack and stack[-1][0] >= h_lvl:
+                            stack.pop()
+                        stack.append((h_lvl, h_title))
+                    else:
+                        break
+                if stack:
+                    h_context = " ".join(s[1] for s in stack)
 
             tokens = tokenize(
                 text_chunk, file_path=name, header_context=h_context
@@ -278,8 +311,16 @@ class BM25Indexer:
         if doc_type == "docs":
             for doc_id in scores:
                 fp = self.corpus[doc_id].file_path
-                if fp.endswith(".md") or fp.endswith(".txt") or "/docs/" in fp:
-                    scores[doc_id] *= 1.3
+                if (
+                    "/docs/" in fp
+                    or fp.endswith("CMakeLists.txt")
+                    or fp.endswith("setup.py")
+                    or fp.endswith("SECURITY.md")
+                    or fp.endswith("RELEASE.md")
+                ):
+                    scores[doc_id] *= 1.4
+                elif fp.endswith(".md") or fp.endswith(".txt"):
+                    scores[doc_id] *= 1.1
         elif doc_type == "code":
             for doc_id in scores:
                 fp = self.corpus[doc_id].file_path

@@ -93,10 +93,7 @@ class RagCLI:
             # Record state for incremental indexing
             inc_mgr = IncrementalIndexManager()
             for p in Path(corpus_dir).rglob("*"):
-                if p.is_file() and (
-                    p.suffix in [".py", ".md", ".txt"]
-                    or p.name == "CMakeLists.txt"
-                ):
+                if p.is_file() and p.suffix in [".py", ".md"]:
                     file_chunks = chunk(str(p), max_chunk_size=max_chunk_size)
                     inc_mgr.registry[str(p)] = {
                         "mtime": p.stat().st_mtime,
